@@ -1,4 +1,4 @@
-## Welcome to Prograss Journal!
+## Welcome to my Prograss Journal!
 
 I am Sude Yılmaz. This is my progress journal for IE 423.
 
