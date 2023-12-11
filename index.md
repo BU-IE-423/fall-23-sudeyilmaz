@@ -7,4 +7,4 @@ This is [link to my repository](https://github.com/BU-IE-423/fall-23-sudeyilmaz)
 * [Stock Analysis](https://bu-ie-423.github.io/fall-23-sudeyilmaz/IE423_Project_Part1_final.html): Analysis of 6 different stock data. 
 
 ### Project Part 2
-* [Pairs Trading](project_part2_IE423.html): 
+* [Pairs Trading](https://bu-ie-423.github.io/fall-23-sudeyilmaz/project_part2_IE423.html): Analysis of BIST30 Stock Indices
