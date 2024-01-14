@@ -9,7 +9,9 @@ This is [link to my repository](https://github.com/BU-IE-423/fall-23-sudeyilmaz)
 ### Project Part 2
 * [Pairs Trading](https://bu-ie-423.github.io/fall-23-sudeyilmaz/project_part2_IE423.html):Analysis of BIST30 Stock Indices.
 
-  ### Project Part 3
-* [Quality Control on Images](Project Part 3/IE423_part3_.html):Defect detection on images.
+### Project Part 3
+* [Quality Control on Images](https://github.com/BU-IE-423/fall-23-sudeyilmaz/blob/8a9befe3382a801febd37edb9955176bb44c55aa/Project%20Part%203/IE423_part3_.html):Defect detection on images.
+  
+
 
 
