@@ -1,0 +1,441 @@
+---
+title: "IE 423 Project Part 3"
+output:
+  html_document:
+    df_print: paged
+---
+
+### Sude Yılmaz
+
+### Yusufcan Özkan
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message = FALSE)
+```
+
+```{r}
+#install.packages("png")
+library(png)
+
+```
+
+```{r}
+# Read the PNG image
+img <- readPNG("/Users/sudeyilmaz/Desktop/IE\ 423/part3/95grayscale.png",info=TRUE)
+
+# Check the dimensions of the image
+dim(img)
+
+# Access pixel values
+pixel_values <- img  # Assuming it's a grayscale image, it has only one channel
+
+# Print pixel values
+#pixel_values
+
+```
+
+# Some Strategies for Defect Detection
+
+## A Baseline Defect Detection Approach from a Statistical Data Analysis Perspective
+
+```{r}
+# Plot the histogram
+hist(pixel_values, main = "Histogram of Pixel Values", xlab = "Pixel Value", ylab = "Frequency")
+# Calculate mean and standard deviation
+mean_value <- mean(pixel_values)
+sd_value <- sd(pixel_values)
+
+# Print the results
+cat("Mean:", mean_value, "\n")
+cat("Standard Deviation:", sd_value, "\n")
+
+
+# Overlay probability density function (PDF)
+x_range <- seq(min(pixel_values), max(pixel_values), length.out = 1000)
+pdf_values <- dnorm(x_range, mean = mean_value, sd = sd_value)
+pdf_values <- pdf_values * diff(hist(pixel_values, plot = FALSE)$breaks[1:2]) * length(pixel_values)
+
+lines(x_range, pdf_values, col = "blue", lwd = 2)
+ 
+```
+
+```{r}
+# Find pixel values corresponding to the 0.001 probability limits
+lower_limit <- qnorm(0.001, mean = mean_value, sd = sd_value)
+upper_limit <- qnorm(0.999, mean = mean_value, sd = sd_value)
+
+
+# Print the results
+#cat("Lower Limit:", lower_limit, "\n")
+#cat("Upper Limit:", upper_limit, "\n")
+
+# Find pixel values outside the 0.001 and 0.999 probability limits
+outside_limits <- pixel_values < lower_limit | pixel_values > upper_limit
+
+# Extract indices of pixel values that are outside the limits
+outlier_indices <- which(outside_limits)
+
+# Print or use the outlier indices as needed
+#cat("Number of Outliers:", length(outlier_indices), "\n")
+#cat("Outlier Indices:", outlier_indices, "\n")
+
+```
+
+```{r}
+# Make a copy of the pixel_values vector
+pixel_values_new <- pixel_values
+# Set pixel values to 0 for the identified outliers in the copy
+pixel_values_new[outlier_indices] <- 0
+
+
+
+
+# Adjust the dimensions based on the original image dimensions
+org_image <- matrix(pixel_values, nrow = 512, ncol = 512)
+
+par(mfrow = c(1, 2))
+# Display the original image
+image(org_image, main = "Original Image", col = gray.colors(256))
+
+
+# Reshape the vector to a matrix (assuming it's a 2D image)
+# Adjust the dimensions based on the original image dimensions
+new_image <- matrix(pixel_values_new, nrow = 512, ncol = 512)
+
+# Display the modified image
+image(new_image, main = "Modified Image", col = gray.colors(256))
+par(mfrow = c(1, 1))
+```
+
+## Analysis on Patches
+
+```{r}
+# Function to process non-overlapping patches and identify outliers
+process_patches <- function(image, window_size = 51, alpha = 0.001) {
+  img_matrix <- matrix(image, ncol = 512)
+  img_outlier_patches <- matrix(0, nrow = 512, ncol = 512)  # Initialize output matrix
+  
+  for (i in seq(1, 512 - window_size + 1, by = window_size)) {
+    for (j in seq(1, 512 - window_size + 1, by = window_size)) {
+      # Extract patch
+      patch <- img_matrix[i:min(i + window_size - 1, 512), j:min(j + window_size - 1, 512)]
+      
+      # Flatten the patch into a vector
+      patch_vector <- as.vector(patch)
+      
+      # Calculate mean and standard deviation
+      mean_value <- mean(patch_vector)
+      sd_value <- sd(patch_vector)
+      
+      # Find pixel values corresponding to the 0.001 probability limits
+      lower_limit <- qnorm(0.001, mean = mean_value, sd = sd_value)
+      upper_limit <- qnorm(0.999, mean = mean_value, sd = sd_value)
+      
+      # Find pixel values outside the 0.001 and 0.999 probability limits
+      outside_limits <- patch_vector < lower_limit | patch_vector > upper_limit
+      
+      # Extract indices of pixel values that are outside the limits
+      outlier_indices <- which(outside_limits)
+      
+      # Set pixel values to 0 for the identified outliers in the output matrix
+      img_outlier_patches[i:min(i + window_size - 1, 512), j:min(j + window_size - 1, 512)] <- img_outlier_patches[i:min(i + window_size - 1, 512), j:min(j + window_size - 1, 512)] +
+        replace(patch, outlier_indices, 0)
+    }
+  }
+  
+  return(img_outlier_patches)
+}
+
+# Apply the process_non_overlapping_patches function
+img_outlier_patches <- process_patches(img)
+
+# Plot the original and modified images with outliers set to 0
+par(mfrow = c(1, 2))
+image(img, main = "Original Image", col = gray.colors(256))
+image(img_outlier_patches, main = "Modified Image", col = gray.colors(256))
+par(mfrow = c(1, 1))
+
+```
+
+## A Simple Defect Detection Approach from a Control Chart Perspective
+
+### Monitor Rows
+
+```{r}
+# Function to create a control chart for each row
+control_chart_row <- function(row, k = 3) {
+  mean_row <- mean(row)
+  sd_row <- sd(row)
+  
+  upper_limit <- mean_row + k * sd_row
+  lower_limit <- mean_row - k * sd_row
+  
+  out_of_control <- row > upper_limit | row < lower_limit
+  
+  return(out_of_control)
+}
+
+```
+
+```{r}
+# Initialize a matrix for the modified image
+img_modified <- img
+
+# Loop through rows and set the pixel values to zero for the out-of-control pixels
+for (i in 1:nrow(img)) {
+  row <- img[i, ]
+  if (any(control_chart_row(row))) {
+    img_modified[i,control_chart_row(row)] <- 0
+  }
+}
+
+# Plot the original and modified images
+par(mfrow = c(1, 2))
+image(img, main = "Original Image", col = gray.colors(256))
+image(img_modified, main = "Modified Image", col = gray.colors(256))
+par(mfrow = c(1, 1))
+
+```
+
+### Monitor Columns
+
+```{r}
+# Function to create a control chart for each column
+control_chart_column <- function(column) {
+  mean_column <- mean(column)
+  sd_column <- sd(column)
+  
+  upper_limit <- mean_column + 3 * sd_column
+  lower_limit <- mean_column - 3 * sd_column
+  
+  out_of_control <- column > upper_limit |  column < lower_limit
+  
+  return(out_of_control)
+}
+
+```
+
+```{r}
+# Initialize a matrix for the modified image
+img_modified <- img
+
+# Loop through rows and set the pixel values to zero for the out-of-control pixels
+for (j in 1:ncol(img)) {
+  column <- img[,j ]
+  if (any(control_chart_column(column))) {
+    img_modified[control_chart_column(column),j] <- 0
+  }
+}
+
+# Plot the original and modified images
+par(mfrow = c(1, 2))
+image(readPNG("/Users/sudeyilmaz/Desktop/IE\ 423/part3/image95.png", info = TRUE), main = "Original Image", col = gray.colors(256))
+image(img_modified, main = "Modified Image", col = gray.colors(256))
+par(mfrow = c(1, 1))
+
+```
+
+# Our Proposal
+
+```{r}
+MovingAverage2D <- function(data_matrix, lag_row = 40, lag_col = 40) {
+  MA <- data_matrix
+  
+  # Apply moving average along rows
+  for (i in 1:(lag_row - 1)) {
+    MA <- MA + cbind(MA[, 1], MA[, -ncol(MA)])
+  }
+  MA <- MA / lag_row
+  
+  # Apply moving average along columns
+  for (j in 1:(lag_col - 1)) {
+    MA <- MA + rbind(MA[1,], MA[-nrow(MA),])
+  }
+  MA <- MA / lag_col
+  
+  MA <- MA[(lag_row + 1):nrow(MA), (lag_col + 1):ncol(MA)]
+
+  
+  return(MA)
+}
+
+# Example usage for a 2D moving average with different lags for rows and columns
+result <- MovingAverage2D(img, lag_row = 40, lag_col = 40)
+
+# Plot the original and the 2D moving average
+par(mfrow = c(1, 2))
+image(img, main = "Original Image", col = gray.colors(256))
+image(result, main = "2D Moving Average", col = gray.colors(256))
+par(mfrow = c(1, 1))
+
+```
+
+```{r}
+result <- MovingAverage2D(img, lag_row = 40, lag_col = 40)
+
+mean_result <- mean(result)
+mean_img <- mean(img)
+
+result <- mean_img*result/mean_result
+
+mean_res <- mean(result)
+sd_res <- sd(result)
+LCL_result <- mean_res - 3* sd_res
+result[result<LCL_result] <- 0.45
+
+par(mfrow = c(1, 2))
+image(img, main = "Original Image", col = gray.colors(256))
+image(result, main = "Modified Image", col = gray.colors(256))
+
+```
+
+# Comparison Among 5 Other Images
+
+```{r}
+# Set seed for reproducibility (optional)
+set.seed(423)
+
+# Generate 100 random integers between 2 and 196
+random_integers <- sample(seq(2, 196), 100, replace = TRUE)
+
+# Print the generated integers
+print(random_integers)
+
+```
+
+## Image1:27
+
+```{r}
+img27 <- readPNG("/Users/sudeyilmaz/Desktop/IE\ 423/part3/27grayscale.png")
+
+comparison1 <- MovingAverage2D(img27, lag_row = 40, lag_col = 40)
+
+mean_comparison1 <- mean(comparison1)
+mean_img27 <- mean(img27)
+
+comparison1 <- mean_img27*comparison1/mean_comparison1
+
+mean_res <- mean(comparison1)
+sd_res <- sd(comparison1)
+
+LCL_result <- mean_res - 3* sd_res
+UCL_result <- mean_res + 3* sd_res
+comparison1[comparison1<LCL_result] <- min(1, mean_res + 10* sd_res)
+comparison1[comparison1>UCL_result] <- max(0, mean_res - 10* sd_res)
+
+par(mfrow = c(1, 2))
+image(img27, main = "Original Image", col = gray.colors(256))
+image(comparison1, main = "Modified Image", col = gray.colors(256))
+par(mfrow = c(1, 1))
+```
+
+## Image2:34
+
+```{r}
+img34 <- readPNG("/Users/sudeyilmaz/Desktop/IE\ 423/part3/34grayscale.png")
+
+comparison2 <- MovingAverage2D(img34, lag_row = 40, lag_col = 40)
+
+mean_comparison2 <- mean(comparison2)
+mean_img34 <- mean(img34)
+
+comparison2 <- mean_img34*comparison2/mean_comparison2
+
+mean_res <- mean(comparison2)
+sd_res <- sd(comparison2)
+
+LCL_result <- mean_res - 3* sd_res
+UCL_result <- mean_res + 3* sd_res
+comparison2[comparison2<LCL_result] <- min(1, mean_res + 10* sd_res)
+comparison2[comparison2>UCL_result] <- max(0, mean_res - 10* sd_res)
+
+par(mfrow = c(1, 2))
+image(img34, main = "Original Image", col = gray.colors(256))
+image(comparison2, main = "Modified Image", col = gray.colors(256))
+par(mfrow = c(1, 1))
+
+```
+
+## Image3:77
+
+```{r}
+
+img77 <- readPNG("/Users/sudeyilmaz/Desktop/IE\ 423/part3/77grayscale.png")
+
+comparison3 <- MovingAverage2D(img77, lag_row = 40, lag_col = 40)
+
+mean_comparison3 <- mean(comparison3)
+mean_img77 <- mean(img77)
+
+comparison3 <- mean_img77*comparison3/mean_comparison3
+
+mean_res <- mean(comparison3)
+sd_res <- sd(comparison3)
+
+LCL_result <- mean_res - 3* sd_res
+UCL_result <- mean_res + 3* sd_res
+comparison3[comparison3<LCL_result] <- min(1, mean_res + 10* sd_res)
+comparison3[comparison3>UCL_result] <- max(0, mean_res - 10* sd_res)
+
+
+par(mfrow = c(1, 2))
+image(img77, main = "Original Image", col = gray.colors(256))
+image(comparison3, main = "Modified Image", col = gray.colors(256))
+par(mfrow = c(1, 1))
+```
+
+## Image4:85
+
+```{r}
+
+img85 <- readPNG("/Users/sudeyilmaz/Desktop/IE\ 423/part3/85grayscale.png")
+
+comparison4 <- MovingAverage2D(img85, lag_row = 40, lag_col = 40)
+
+mean_comparison4 <- mean(comparison4)
+mean_img85 <- mean(img85)
+
+comparison4 <- mean_img85*comparison4/mean_comparison4
+
+mean_res <- mean(comparison4)
+sd_res <- sd(comparison4)
+
+LCL_result <- mean_res - 3* sd_res
+UCL_result <- mean_res + 3* sd_res
+comparison4[comparison4<LCL_result] <- min(1, mean_res + 10* sd_res)
+comparison4[comparison4>UCL_result] <- max(0, mean_res - 10* sd_res)
+
+par(mfrow = c(1, 2))
+image(img85, main = "Original Image", col = gray.colors(256))
+image(comparison4, main = "Modified Image", col = gray.colors(256))
+par(mfrow = c(1, 1))
+```
+
+## Image5:172
+
+```{r}
+
+img172 <- readPNG("/Users/sudeyilmaz/Desktop/IE\ 423/part3/172grayscale.png")
+
+comparison5 <- MovingAverage2D(img172, lag_row = 40, lag_col = 40)
+
+mean_comparison5 <- mean(comparison5)
+mean_img172 <- mean(img172)
+
+comparison5 <- mean_img172*comparison5/mean_comparison5
+
+mean_res <- mean(comparison5)
+sd_res <- sd(comparison5)
+
+LCL_result <- mean_res - 3* sd_res
+UCL_result <- mean_res + 2* sd_res
+#comparison5[comparison5<LCL_result] <- min(1, mean_res + 10* sd_res)
+comparison5[comparison5>UCL_result] <- max(0, mean_res - 10* sd_res)
+
+par(mfrow = c(1, 2))
+image(img172, main = "Original Image", col = gray.colors(256))
+image(comparison5, main = "Modified Image", col = gray.colors(256))
+par(mfrow = c(1, 1))
+```
